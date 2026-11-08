@@ -1,0 +1,687 @@
+{
+  "revision": "d96201194f103c906994f283f504209dc8d2a10c",
+  "installed_control": "0.1.56",
+  "header_checks": [
+    {
+      "tier": "UD-IQ3_XXS",
+      "split_check": "PASS",
+      "tensors": 1224,
+      "types": {
+        "Q6_K": 250,
+        "Q8_0": 248,
+        "F32": 557,
+        "BF16": 24,
+        "IQ4_NL": 46,
+        "IQ2_S": 52,
+        "Q2_0": 3,
+        "IQ3_XXS": 42,
+        "IQ4_XS": 2
+      },
+      "table": {
+        "name": "per_layer_token_embd.weight",
+        "shape": [
+          160,
+          320001536
+        ],
+        "type": "IQ4_NL",
+        "bytes": 28800138240
+      },
+      "header_bytes_read": 14092346
+    },
+    {
+      "tier": "UD-Q3_K_XL",
+      "split_check": "PASS",
+      "tensors": 1224,
+      "types": {
+        "Q6_K": 213,
+        "Q8_0": 284,
+        "F32": 557,
+        "IQ4_XS": 13,
+        "BF16": 24,
+        "Q5_0": 20,
+        "IQ2_S": 8,
+        "IQ3_XXS": 76,
+        "IQ4_NL": 27,
+        "Q2_0": 2
+      },
+      "table": {
+        "name": "per_layer_token_embd.weight",
+        "shape": [
+          160,
+          320001536
+        ],
+        "type": "IQ4_NL",
+        "bytes": 28800138240
+      },
+      "header_bytes_read": 14092346
+    },
+    {
+      "tier": "UD-Q4_K_XL",
+      "split_check": "PASS",
+      "tensors": 1224,
+      "types": {
+        "Q8_0": 503,
+        "F32": 557,
+        "Q5_1": 43,
+        "Q4_K": 94,
+        "Q5_K": 2,
+        "BF16": 24,
+        "IQ4_NL": 1
+      },
+      "table": {
+        "name": "per_layer_token_embd.weight",
+        "shape": [
+          160,
+          320001536
+        ],
+        "type": "IQ4_NL",
+        "bytes": 28800138240
+      },
+      "header_bytes_read": 14092346
+    },
+    {
+      "engram": "BF16",
+      "split_metadata": {
+        "split.no": 0,
+        "split.tensors.count": 1224,
+        "split.count": 1
+      },
+      "tensors": [
+        {
+          "name": "per_layer_token_embd.weight",
+          "shape": [
+            160,
+            320001536
+          ],
+          "type": "BF16",
+          "bytes": 102400491520
+        }
+      ]
+    },
+    {
+      "engram": "Q8_0",
+      "split_metadata": {
+        "split.no": 0,
+        "split.count": 1,
+        "split.tensors.count": 1224
+      },
+      "tensors": [
+        {
+          "name": "per_layer_token_embd.weight",
+          "shape": [
+            160,
+            320001536
+          ],
+          "type": "Q8_0",
+          "bytes": 54400261120
+        }
+      ]
+    },
+    {
+      "engram": "Q5_1",
+      "split_metadata": {
+        "split.no": 0,
+        "split.count": 1,
+        "split.tensors.count": 1224
+      },
+      "tensors": [
+        {
+          "name": "per_layer_token_embd.weight",
+          "shape": [
+            160,
+            320001536
+          ],
+          "type": "Q5_1",
+          "bytes": 38400184320
+        }
+      ]
+    }
+  ],
+  "expert_checks": [
+    {
+      "tier": "UD-IQ3_XXS",
+      "expert_role_formats": {
+        "('IQ2_S', 'IQ2_S', 'IQ4_NL')": 23,
+        "('IQ2_S', 'IQ2_S', 'Q2_0')": 3,
+        "('IQ3_XXS', 'IQ3_XXS', 'IQ4_NL')": 21,
+        "('IQ4_XS', 'IQ4_XS', 'IQ4_NL')": 1
+      },
+      "gate_up_type_mismatches": [],
+      "expert_bytes": 50292326400,
+      "bf16_dense": [
+        {
+          "name": "blk.3.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.3.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.7.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.7.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.11.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.11.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.15.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.15.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.19.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.19.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.23.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.23.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.27.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.27.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.31.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.31.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.35.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.35.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.39.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.39.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.43.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.43.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.47.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.47.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        }
+      ]
+    },
+    {
+      "tier": "UD-Q3_K_XL",
+      "expert_role_formats": {
+        "('IQ2_S', 'IQ2_S', 'Q5_0')": 1,
+        "('IQ3_XXS', 'IQ3_XXS', 'Q5_0')": 17,
+        "('IQ3_XXS', 'IQ3_XXS', 'IQ4_NL')": 21,
+        "('IQ2_S', 'IQ2_S', 'Q2_0')": 2,
+        "('IQ2_S', 'IQ2_S', 'IQ4_NL')": 1,
+        "('IQ4_XS', 'IQ4_XS', 'IQ4_NL')": 4,
+        "('IQ4_XS', 'IQ4_XS', 'Q5_0')": 2
+      },
+      "gate_up_type_mismatches": [],
+      "expert_bytes": 56177459200,
+      "bf16_dense": [
+        {
+          "name": "blk.3.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.3.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.7.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.7.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.11.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.11.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.15.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.15.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.19.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.19.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.23.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.23.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.27.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.27.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.31.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.31.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.35.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.35.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.39.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.39.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.43.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.43.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.47.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.47.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        }
+      ]
+    },
+    {
+      "tier": "UD-Q4_K_XL",
+      "expert_role_formats": {
+        "('Q4_K', 'Q4_K', 'Q5_1')": 43,
+        "('Q5_K', 'Q5_K', 'Q8_0')": 1,
+        "('Q4_K', 'Q4_K', 'Q8_0')": 4
+      },
+      "gate_up_type_mismatches": [],
+      "expert_bytes": 77017907200,
+      "bf16_dense": [
+        {
+          "name": "blk.3.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.3.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.7.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.7.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.11.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.11.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.15.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.15.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.19.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.19.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.23.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.23.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.27.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.27.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.31.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.31.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.35.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.35.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.39.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.39.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.43.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.43.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        },
+        {
+          "name": "blk.47.indexer.k_proj.weight",
+          "shape": [
+            2560,
+            128
+          ]
+        },
+        {
+          "name": "blk.47.indexer.q_proj.weight",
+          "shape": [
+            2560,
+            512
+          ]
+        }
+      ]
+    }
+  ]
+}
