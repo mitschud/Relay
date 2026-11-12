@@ -128,7 +128,7 @@ fn main() -> eframe::Result {
                 eframe::icon_data::from_png_bytes(include_bytes!("../assets/relay.png"))
                     .expect("bundled Relay icon"),
             )
-            .with_transparent(true)
+            .with_transparent(false)
             .with_inner_size([1050.0, 780.0])
             .with_min_inner_size([400.0, 400.0]),
         renderer: eframe::Renderer::Glow,

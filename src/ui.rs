@@ -13,7 +13,7 @@ use std::{
 };
 
 // Neutral greys matched to the installed Codex dark theme.
-const BG: Color32 = Color32::from_rgba_premultiplied(12, 12, 12, 128);
+const BG: Color32 = Color32::from_gray(24);
 const PANEL: Color32 = Color32::from_rgb(33, 33, 33);
 const MUTED: Color32 = Color32::from_rgb(153, 153, 153);
 
@@ -1354,7 +1354,7 @@ impl App {
 
 impl eframe::App for App {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        [0.0, 0.0, 0.0, 0.0]
+        BG.to_normalized_gamma_f32()
     }
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -1505,7 +1505,6 @@ impl eframe::App for App {
         {
             self.quit_armed = false;
         }
-        // One surface across the whole window; nested panels must not double alpha.
         root.painter().rect_filled(ctx.content_rect(), 0, BG);
         crate::branding::watermark(root.painter(), ctx.content_rect());
         egui::Panel::top("window-drag-strip")
