@@ -1,5 +1,4 @@
-//! Small stdio MCP search/read adapter; uses the existing demand-started
-//! OmniSearch at 127.0.0.1:8087. This is the former `helpers/relay-web`.
+//! Stdio MCP adapter for optional web search and public page reads.
 use serde_json::{Value, json};
 use std::{
     io::{BufRead, Write},
@@ -141,7 +140,19 @@ fn resolve_url(base: &str, location: &str) -> Result<String, String> {
     ))
 }
 
-fn fetch(url: &str, local: bool) -> Result<(String, String, String), String> {
+const READABLE_TYPES: &[&str] = &[
+    "text/html", "text/plain", "text/markdown", "application/json", "application/xhtml+xml",
+];
+const UNREADABLE_PAGE: &str = "This reader supports HTML, text, Markdown and JSON.";
+
+fn is_unlabeled_html(text: &str) -> bool {
+    let prefix: String = text.trim_start_matches('\u{feff}').trim_start().chars()
+        .take(15).map(|c| c.to_ascii_lowercase()).collect();
+    prefix.starts_with("<!doctype html") || prefix.starts_with("<html>")
+        || prefix.starts_with("<html ") || prefix.starts_with("<html\n")
+}
+
+fn fetch(url: &str) -> Result<(String, String, String), String> {
     let mut current = url.to_owned();
     let agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(25)))
@@ -150,13 +161,11 @@ fn fetch(url: &str, local: bool) -> Result<(String, String, String), String> {
         .build()
         .new_agent();
     for _ in 0..6 {
-        if !local {
-            public_url(&current)?;
-        }
+        public_url(&current)?;
         let mut response = agent
             .get(&current)
             .header("User-Agent", "Relay-Web/0.1 (documentation reader)")
-            .header("Accept", "text/html,text/plain,application/json")
+            .header("Accept", "text/html,text/plain,text/markdown,application/json")
             .header("Accept-Encoding", "identity")
             .call()
             .map_err(|e| e.to_string())?;
@@ -177,17 +186,14 @@ fn fetch(url: &str, local: bool) -> Result<(String, String, String), String> {
             .headers()
             .get("content-type")
             .and_then(|value| value.to_str().ok())
-            .unwrap_or("application/octet-stream")
+            .unwrap_or("")
             .split(';')
             .next()
-            .unwrap_or("application/octet-stream")
+            .unwrap_or("")
             .trim()
             .to_ascii_lowercase();
-        if !matches!(
-            content_type.as_str(),
-            "text/html" | "text/plain" | "application/json" | "application/xhtml+xml"
-        ) {
-            return Err("This reader supports HTML/text/JSON, not downloads or PDFs.".into());
+        if !content_type.is_empty() && !READABLE_TYPES.contains(&content_type.as_str()) {
+            return Err(UNREADABLE_PAGE.into());
         }
         let text = response
             .body_mut()
@@ -200,30 +206,17 @@ fn fetch(url: &str, local: bool) -> Result<(String, String, String), String> {
         if text.len() > 1_500_000 {
             return Err("Page exceeds the 1.5 MB reading limit; choose a narrower page.".into());
         }
+        let content_type = if content_type.is_empty() {
+            if !is_unlabeled_html(&text) {
+                return Err(UNREADABLE_PAGE.into());
+            }
+            "text/html".to_owned()
+        } else {
+            content_type
+        };
         return Ok((text, content_type, current));
     }
     Err("Too many redirects.".into())
-}
-
-fn attr<'a>(attrs: &'a str, name: &str) -> Option<&'a str> {
-    let lower = attrs.to_ascii_lowercase();
-    let pattern = format!("{name}=");
-    let index = lower.find(&pattern)?;
-    let rest = &attrs[index + pattern.len()..];
-    let rest = rest.trim_start();
-    if let Some(stripped) = rest.strip_prefix('"') {
-        stripped.split('"').next()
-    } else if let Some(stripped) = rest.strip_prefix('\'') {
-        stripped.split('\'').next()
-    } else {
-        rest.split(|c: char| c.is_whitespace() || c == '>').next()
-    }
-}
-
-fn class_has(attrs: &str, token: &str) -> bool {
-    attr(attrs, "class")
-        .map(|value| value.split_whitespace().any(|item| item == token))
-        .unwrap_or(false)
 }
 
 fn decode_entities(text: &str) -> String {
@@ -264,124 +257,6 @@ fn decode_entities(text: &str) -> String {
     }
     out.push_str(rest);
     out
-}
-
-struct ResultRow {
-    title: String,
-    url: String,
-    snippet: String,
-}
-
-fn parse_results(html: &str) -> Vec<ResultRow> {
-    #[derive(Clone, Copy, PartialEq)]
-    enum Field {
-        Title,
-        Snippet,
-    }
-    let mut rows = Vec::new();
-    let mut depth = 0usize;
-    let mut row: Option<ResultRow> = None;
-    let mut field: Option<Field> = None;
-    let mut index = 0usize;
-    let mut text_start = 0usize;
-    let text = |value: &str, row: &mut Option<ResultRow>, field: Option<Field>| {
-        if let (Some(row), Some(field)) = (row, field) {
-            match field {
-                Field::Title => row.title.push_str(value),
-                Field::Snippet => row.snippet.push_str(value),
-            }
-        }
-    };
-    while index < html.len() {
-        if html.as_bytes()[index] == b'<' {
-            let value = &html[text_start..index];
-            text(value, &mut row, field);
-            if html[index..].starts_with("<!--") {
-                match html[index..].find("-->") {
-                    Some(end) => {
-                        index += end + 3;
-                        text_start = index;
-                        continue;
-                    }
-                    None => break,
-                }
-            }
-            let Some(end) = html[index..].find('>') else {
-                break;
-            };
-            let end = index + end;
-            let inner = &html[index + 1..end];
-            let trimmed = inner.trim();
-            if let Some(name) = trimmed.strip_prefix('/') {
-                let name = name
-                    .split_whitespace()
-                    .next()
-                    .unwrap_or("")
-                    .to_ascii_lowercase();
-                if name == "a" || name == "p" {
-                    field = None;
-                } else if name == "div" && depth > 0 {
-                    depth -= 1;
-                    if depth == 0 {
-                        if let Some(row) = row.take() {
-                            if !row.url.is_empty() {
-                                rows.push(row);
-                            }
-                        }
-                    }
-                }
-            } else if !trimmed.starts_with('!') {
-                let name = trimmed
-                    .split(|c: char| c.is_whitespace() || c == '/')
-                    .next()
-                    .unwrap_or("")
-                    .to_ascii_lowercase();
-                let attrs = &trimmed[name.len()..];
-                match name.as_str() {
-                    "div" => {
-                        if depth > 0 {
-                            depth += 1;
-                        } else if class_has(attrs, "result") {
-                            depth = 1;
-                            row = Some(ResultRow {
-                                title: String::new(),
-                                url: String::new(),
-                                snippet: String::new(),
-                            });
-                        }
-                    }
-                    "a" if depth > 0 => {
-                        if let (Some(current), Some(href)) = (row.as_mut(), attr(attrs, "href")) {
-                            if current.url.is_empty()
-                                && (href.starts_with("http://") || href.starts_with("https://"))
-                            {
-                                current.url = href.to_owned();
-                                field = Some(Field::Title);
-                            }
-                        }
-                    }
-                    "p" if depth > 0 => {
-                        if class_has(attrs, "desc") {
-                            field = Some(Field::Snippet);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            index = end + 1;
-            text_start = index;
-        } else {
-            index += 1;
-        }
-    }
-    text(&html[text_start..], &mut row, field);
-    for row in &mut rows {
-        row.title = row.title.split_whitespace().collect::<Vec<_>>().join(" ");
-        row.snippet = row.snippet.split_whitespace().collect::<Vec<_>>().join(" ");
-        row.title = row.title.chars().take(300).collect();
-        row.snippet = row.snippet.chars().take(700).collect();
-    }
-    rows
 }
 
 fn is_hidden(tag: &str) -> bool {
@@ -484,42 +359,114 @@ fn url_encode(text: &str) -> String {
     out
 }
 
+fn tavily_key() -> Option<String> {
+    let validate = |value: String| {
+        let key = value.trim();
+        if !key.is_empty() && key.len() <= 256
+            && key.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        {
+            return Some(key.to_owned());
+        }
+        None
+    };
+    std::env::var("TAVILY_API_KEY").ok().and_then(validate).or_else(|| {
+        let path = crate::util::home().join(".config/relay/tavily-key");
+        std::fs::read_to_string(path).ok().and_then(validate)
+    })
+}
+
+fn tavily_search(key: &str, query: &str, limit: usize) -> Result<Vec<Value>, String> {
+    let agent = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(12)))
+        .http_status_as_error(false)
+        .max_redirects(0)
+        .build()
+        .new_agent();
+    let mut response = agent
+        .post("https://api.tavily.com/search")
+        .header("Authorization", format!("Bearer {key}"))
+        .send_json(json!({
+            "query": query,
+            "max_results": limit,
+            "search_depth": "basic",
+            "auto_parameters": false,
+            "include_answer": false,
+            "include_raw_content": false,
+        }))
+        .map_err(|_| "Tavily could not be reached.".to_owned())?;
+    let status = response.status().as_u16();
+    match status {
+        200 => {}
+        401 | 403 => return Err("Tavily rejected the configured API key.".into()),
+        429 => return Err("Tavily rate-limited the search. Try again later.".into()),
+        432 | 433 => return Err("Tavily refused the search because of an account limit.".into()),
+        _ => return Err(format!("Tavily returned HTTP {status}.")),
+    }
+    let body = response.body_mut().with_config().limit(500_000).read_json::<Value>()
+        .map_err(|_| "Tavily returned an unreadable response.".to_owned())?;
+    tavily_results(&body, limit)
+}
+
+fn tavily_results(body: &Value, limit: usize) -> Result<Vec<Value>, String> {
+    let rows = body["results"].as_array().ok_or("Tavily returned no result list.")?;
+    let mut seen = std::collections::HashSet::new();
+    Ok(rows.iter().filter_map(|row| {
+        let url = row["url"].as_str()?.trim();
+        parse_url(url).ok()?;
+        if url.len() > 4096 || url.chars().any(char::is_whitespace) || !seen.insert(url) {
+            return None;
+        }
+        let title = row["title"].as_str().unwrap_or(url).chars().take(300).collect::<String>();
+        let snippet = row["content"].as_str().unwrap_or("").chars().take(700).collect::<String>();
+        Some(json!({"title": title, "url": url, "snippet": snippet}))
+    }).take(limit).collect())
+}
+
 fn search_web(query: &str, limit: u64) -> Result<Value, String> {
     let query = query.trim();
     if query.is_empty() || query.chars().count() > 500 {
         return Err("Query must contain 1–500 characters.".into());
     }
-    let limit = limit.clamp(1, 10) as usize;
-    let url = format!(
-        "http://127.0.0.1:8087/search?q={}",
-        url_encode(query)
-    );
-    let (html, _, _) = fetch(&url, true)?;
-    let mut seen = std::collections::HashSet::new();
-    let mut rows = Vec::new();
-    for row in parse_results(&html) {
-        if !seen.insert(row.url.clone()) {
-            continue;
-        }
-        rows.push(json!({"title": row.title, "url": row.url, "snippet": row.snippet}));
-        if rows.len() >= limit {
-            break;
+
+    let fallback_reason = match tavily_key() {
+        Some(key) => match tavily_search(&key, query, limit.clamp(1, 10) as usize) {
+            Ok(results) if !results.is_empty() => return Ok(json!({
+                "provider": "tavily",
+                "query": query,
+                "results": results,
+                "notice": "Untrusted public search results. Read the relevant primary pages with read_page before citing them."
+            })),
+            Ok(_) => "Tavily found no usable results.".into(),
+            Err(reason) => reason,
+        },
+        None => "Automatic search needs a Tavily API key.".into(),
+    };
+
+    let mut url = format!("https://www.startpage.com/sp/search?query={}", url_encode(query));
+    if let Some(home) = std::env::var_os("HOME") {
+        let path = std::path::PathBuf::from(home).join(".config/startpage/preferences");
+        if let Ok(preferences) = std::fs::read_to_string(path) {
+            let preferences = preferences.trim();
+            if !preferences.is_empty()
+                && preferences.len() <= 2048
+                && preferences.bytes().all(|byte| byte.is_ascii_hexdigit())
+            {
+                url.push_str("&prfe=");
+                url.push_str(preferences);
+            }
         }
     }
     Ok(json!({
-        "query": query,
-        "results": rows,
-        "notice": if rows.is_empty() {
-            "No parsed results. Providers may be blocked or unavailable; do not invent results."
-        } else {
-            "Untrusted web results; read primary pages before citing facts."
-        }
+        "provider": "startpage_browser",
+        "search_url": url,
+        "results": [],
+        "notice": format!("{fallback_reason} Show the user the browser link and report that no results were retrieved.")
     }))
 }
 
 fn read_page(url: &str, max_chars: u64) -> Result<Value, String> {
     let budget = max_chars.clamp(1000, 24000) as usize;
-    let (content, kind, final_url) = fetch(url, false)?;
+    let (content, kind, final_url) = fetch(url)?;
     let text = if kind.contains("html") {
         html_to_text(&content)
     } else {
@@ -539,7 +486,7 @@ fn tools() -> Value {
     json!([
         {
             "name": "search_web",
-            "description": "Search current web/documentation through local OmniSearch. Returns titles, URLs and short snippets; no browser/model starts.",
+            "description": "Search the public web and return ranked links and snippets when a Tavily key is configured. Otherwise return a Startpage browser link and explain why no results were retrieved.",
             "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "default": 6}}, "required": ["query"], "additionalProperties": false},
             "annotations": {"readOnlyHint": true, "openWorldHint": true}
         },
@@ -559,7 +506,7 @@ fn dispatch(message: &Value) -> Result<Value, String> {
         "initialize" => Ok(json!({
             "protocolVersion": params.get("protocolVersion").and_then(Value::as_str).unwrap_or("2024-11-05"),
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "relay-omnisearch", "version": "0.1.0"}
+            "serverInfo": {"name": "relay-web", "version": "0.1.0"}
         })),
         "tools/list" => Ok(json!({"tools": tools()})),
         "ping" => Ok(json!({})),
@@ -625,18 +572,29 @@ pub fn main() -> ! {
 mod tests {
     use super::*;
     #[test]
-    fn result_extracts_nested_title_and_ignores_cached_link() {
-        let rows = parse_results(
-            "<div class=\"result\"><div class=\"result-header\">host</div>\
-             <a href=\"https://example.com/docs\">Official <b>docs</b></a>\
-             <p class=\"desc\">Useful snippet</p>\
-             <a class=\"cached\" href=\"https://web.archive.org/x\">cached</a></div>",
-        );
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].url, "https://example.com/docs");
-        assert_eq!(rows[0].title, "Official docs");
-        assert_eq!(rows[0].snippet, "Useful snippet");
+    fn tavily_results_preserve_ranking_and_skip_unusable_links() {
+        let body = json!({"results": [
+            {"url": "file:///etc/passwd", "title": "invalid"},
+            {"url": "https://example.com/docs", "title": "Official docs", "content": "Example"},
+            {"url": "https://example.com/docs", "title": "duplicate"},
+            {"url": "https://example.net/project", "title": "Project"},
+        ]});
+        let results = tavily_results(&body, 2).unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0], json!({"url": "https://example.com/docs", "title": "Official docs", "snippet": "Example"}));
+        assert_eq!(results[1]["url"], "https://example.net/project");
+        assert_eq!(tavily_results(&body, 1).unwrap().len(), 1);
+        assert!(tavily_results(&json!({}), 1).is_err());
     }
+
+    #[test]
+    fn identifies_html_when_a_site_omits_content_type() {
+        assert!(is_unlabeled_html("\u{feff} \n<!DOCTYPE html><html lang=en>"));
+        assert!(is_unlabeled_html("<html lang=en>"));
+        assert!(!is_unlabeled_html("%PDF-1.4"));
+        assert!(!is_unlabeled_html("<htmlish>"));
+    }
+
     #[test]
     fn page_strips_scripts_and_navigation() {
         let text = html_to_text("<nav>hide</nav><h1>Docs</h1><p>Example</p><script>bad()</script>");
