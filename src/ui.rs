@@ -1689,7 +1689,9 @@ impl eframe::App for App {
                     }
                     let expanded=self.ready || self.connecting || self.busy;
                     let shadow_painter=ui.painter().with_clip_rect(ctx.content_rect());
-                    let shadow_id=shadow_painter.add(egui::Shape::Noop);
+                    let shadow_id_a=shadow_painter.add(egui::Shape::Noop);
+                    let shadow_id_b=shadow_painter.add(egui::Shape::Noop);
+                    let shadow_id_c=shadow_painter.add(egui::Shape::Noop);
                     self.composer_top=Some(ui.next_widget_position().y);
                     let composer_frame=egui::Frame::new()
                         .fill(Color32::from_rgb(42, 42, 42))
@@ -1813,7 +1815,10 @@ impl eframe::App for App {
                                 self.send(&ctx);
                             }
                         });
-                    shadow_painter.set(shadow_id,egui::epaint::Shadow{offset:[0,3],blur:72,spread:0,color:Color32::from_black_alpha(34)}.as_shape(composer_frame.response.rect,egui::CornerRadius::same(22)));
+                    // Three stacked layers, no offset: a smooth, even penumbra instead of one hard dark band.
+                    for (id,blur,alpha) in [(shadow_id_a,14u8,10u8),(shadow_id_b,34,8),(shadow_id_c,60,7)] {
+                        shadow_painter.set(id,egui::epaint::Shadow{offset:[0,0],blur,spread:0,color:Color32::from_black_alpha(alpha)}.as_shape(composer_frame.response.rect,egui::CornerRadius::same(22)));
+                    }
                     self.status_pills(ui);
                     let natural=ui.next_widget_position().y-content_start-ui.spacing().item_spacing.y;
                     self.composer_panel_base=(natural-body_height+48.0).max(110.0);
@@ -2093,10 +2098,10 @@ fn compact_tokens(n: u64) -> String {
 fn paint_status_pill(ui: &egui::Ui, rect: egui::Rect) {
     ui.painter().add(
         egui::epaint::Shadow {
-            offset: [0, 2],
+            offset: [0, 0],
             blur: 30,
             spread: 0,
-            color: Color32::from_black_alpha(24),
+            color: Color32::from_black_alpha(14),
         }
         .as_shape(rect, egui::CornerRadius::same(18)),
     );
