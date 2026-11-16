@@ -117,6 +117,39 @@ fn read_json(url: &str) -> Result<Value, String> {
     crate::http::get_json(url, Duration::from_secs(3))
 }
 
+// Turns an engine model id like thinkingcap-qwen3.8-flash-next-rco-3.8bpw into
+// "Qwen 3.8 Flash Next" for display only; selection always uses the raw id.
+fn humanize_name(raw: &str) -> String {
+    const NOISE: &[&str] = &["thinkingcap", "thinking", "rco", "unsloth", "strata"];
+    let mut words: Vec<String> = Vec::new();
+    for token in raw.split('-').filter(|t| !t.is_empty()) {
+        let lower = token.to_lowercase();
+        let noise = NOISE.contains(&lower.as_str())
+            || (lower.ends_with("bpw") && lower.chars().next().is_some_and(|c| c.is_ascii_digit()));
+        if noise {
+            continue;
+        }
+        let mut word = String::new();
+        for c in token.chars() {
+            let boundary = word.chars().next_back().is_some_and(|p| {
+                p.is_ascii_alphabetic() && c.is_ascii_digit()
+            });
+            if boundary {
+                word.push(' ');
+            }
+            word.push(c);
+        }
+        let mut chars = word.chars();
+        let cap = chars.next().map(|c| c.to_uppercase().collect::<String>());
+        words.push(cap.unwrap_or_default() + chars.as_str());
+    }
+    if words.is_empty() {
+        raw.to_owned()
+    } else {
+        words.join(" ")
+    }
+}
+
 fn discover(base: &str, preferred: &str) -> Result<Option<Value>, String> {
     let models = read_json(&format!("{}/models", base.trim_end_matches('/')))?
         .get("data")
@@ -170,6 +203,7 @@ fn discover(base: &str, preferred: &str) -> Result<Option<Value>, String> {
         .and_then(Value::as_str)
         .or_else(|| props.get("model_alias").and_then(Value::as_str))
         .unwrap_or(id);
+    let name = humanize_name(&name);
     let input_modalities = model
         .get("architecture")
         .and_then(|a| a.get("input_modalities"))
@@ -658,5 +692,19 @@ pub fn main(extra: &[String]) {
             eprintln!("Connection failed: {error}");
             std::process::exit(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::humanize_name;
+    #[test]
+    fn pill_name() {
+        assert_eq!(
+            humanize_name("thinkingcap-qwen3.8-flash-next-rco-3.8bpw"),
+            "Qwen 3.8 Flash Next"
+        );
+        assert_eq!(humanize_name("GPT-4o"), "GPT 4o");
+        assert_eq!(humanize_name("rco-3.8bpw"), "rco-3.8bpw");
     }
 }
