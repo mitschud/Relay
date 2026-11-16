@@ -15,6 +15,7 @@ mod drawer;
 mod engine;
 mod fingerprint;
 mod footer;
+mod gbrain;
 mod http;
 mod instance;
 mod local_model;

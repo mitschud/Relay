@@ -69,6 +69,7 @@ The optional sudo integration is tied to the GUI session. It does not install a 
 ### Useful integrations
 
 - **Persistent memory:** an editable local Markdown file for preferences and facts worth carrying across conversations.
+- **GBrain:** optional on-demand memory for project facts and decisions. Open the read-only viewer beside **Skills** to filter the latest 50 active facts.
 - **Web tools:** an MCP search/read adapter for a separately running [OmniSearch](https://codeberg.org/gabrielf/omnisearch) service.
 - **System telemetry:** optional CPU/GPU power, VRAM temperature and memory clock readings through existing RAPL/LACT interfaces.
 - **Native Codex updater:** check for, install, or roll back a separately managed Codex agent build.
@@ -172,6 +173,12 @@ A minimal example (adjust for your installation):
 ```
 
 `start_command` and `stop_command` are arrays of executable/argument strings, not shell command strings. Leave them empty if you manage Strata separately. Configured model profiles are read from `~/.config/relay/models.json`.
+
+### Optional GBrain memory
+
+Set up a local brain using the [GBrain installation guide](https://github.com/garrytan/gbrain/blob/master/INSTALL_FOR_AGENTS.md). In Relay's Codex profile, register it as an MCP server named `gbrain` with `serve --surface verbs`. For browsing with the agent unloaded, make `~/.local/libexec/relay/relay-gbrain` an executable launcher that forwards arguments to the same brain.
+
+Relay includes a snapshot of Persistent Memory when starting or resuming a chat. GBrain facts are retrieved as needed. Ask the agent to remember or forget a GBrain fact, then refresh the viewer to see the change.
 
 ## Local files and data
 

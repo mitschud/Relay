@@ -90,7 +90,7 @@ impl Picker {
             }
         }
         egui::Popup::menu(&button).anchor(crate::adaptive::popup_anchor(button.rect,bar_top)).align(egui::RectAlign::TOP).gap(12.).width(280.)
-            .frame(egui::Frame::new().fill(Color32::from_rgba_unmultiplied(33,33,33,245)).corner_radius(18).inner_margin(12)
+            .frame(egui::Frame::new().fill(Color32::from_gray(33)).corner_radius(18).inner_margin(12)
                 .shadow(egui::epaint::Shadow{offset:[0,5],blur:20,spread:0,color:Color32::from_black_alpha(65)}))
             .fade_show(|ui|{
                 ui.set_width(256.);

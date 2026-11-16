@@ -69,7 +69,7 @@ impl Picker {
         let columns=self.entries.len().clamp(1,2);
         let content_width=if columns==1 {116.0}else{240.0};
         egui::Popup::menu(&arrow).anchor(egui::Rect::from_min_size(egui::pos2(popup_right.unwrap_or(rect.right()+16.0)-96.0,popup_top.unwrap_or(rect.top())),egui::vec2(96.0,30.0))).align(egui::RectAlign::TOP_END).gap(16.0).width(content_width+20.0)
-            .frame(egui::Frame::new().fill(Color32::from_rgba_unmultiplied(33,33,33,245)).corner_radius(18).inner_margin(10)
+            .frame(egui::Frame::new().fill(Color32::from_gray(33)).corner_radius(18).inner_margin(10)
                 .shadow(egui::epaint::Shadow{offset:[0,5],blur:20,spread:0,color:Color32::from_black_alpha(65)}))
             .fade_show(|ui| {
                 ui.set_width(content_width);

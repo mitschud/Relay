@@ -17,12 +17,36 @@ const BG: Color32 = Color32::from_gray(24);
 const PANEL: Color32 = Color32::from_rgb(33, 33, 33);
 const MUTED: Color32 = Color32::from_rgb(153, 153, 153);
 
-fn floating_window(id: &str, width: f32) -> egui::Window<'_> {
-    // Keep the built-in drag/collapse/close behavior, without a separate title slab.
-    egui::Window::new("")
-        .id(egui::Id::unique(id))
+fn floating_window(ctx: &egui::Context, id: &str, width: f32, open: bool) -> egui::Window<'static> {
+    let id = egui::Id::unique(id);
+    let window = egui::Window::new("")
+        .id(id)
         .title_frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(14, 10)))
-        .default_width(width)
+        .pivot(egui::Align2::CENTER_CENTER)
+        .default_width(width);
+
+    // Let egui measure the window and center the measured size. Release the
+    // anchor after the opening passes so the title bar can move the window.
+    let placement = id.with("opening-placement");
+    let pass = ctx.cumulative_pass_nr();
+    let placing = ctx.data_mut(|data| {
+        if !open {
+            data.remove::<(u64, u64)>(placement);
+            return false;
+        }
+        let start = data
+            .get_temp::<(u64, u64)>(placement)
+            .filter(|(_, last)| pass.saturating_sub(*last) <= 1)
+            .map_or(pass, |(start, _)| start);
+        data.insert_temp(placement, (start, pass));
+        pass.saturating_sub(start) < 2
+    });
+    if placing {
+        ctx.request_repaint();
+        window.anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+    } else {
+        window
+    }
 }
 
 pub struct App {
@@ -90,6 +114,7 @@ pub struct App {
     quitting: bool,
     show_memory: bool,
     memory_text: String,
+    gbrain: crate::gbrain::Viewer,
     stop_after_start: bool,
 
     effort: usize,
@@ -149,7 +174,7 @@ impl App {
         // look heavier than Chromium's text at the same font and size.
         style.visuals.text_options.color_transfer_function=egui::epaint::FontColorTransferFunction::Gamma(1.0);
         style.visuals.panel_fill = Color32::TRANSPARENT;
-        style.visuals.window_fill = Color32::from_rgba_unmultiplied(33, 33, 33, 210);
+        style.visuals.window_fill = PANEL;
         style.visuals.window_highlight_topmost = false;
         style.visuals.window_shadow = egui::epaint::Shadow {
             offset: [0, 4],
@@ -204,7 +229,12 @@ impl App {
             .and_then(|v| v["cwd"].as_str())
             .filter(|s| std::path::Path::new(s).is_dir())
             .map(String::from)
-            .unwrap_or_else(|| format!("{}/Documents/Relay", std::env::var("HOME").unwrap()));
+            .unwrap_or_else(|| {
+                let home = crate::util::home();
+                let default_project = home.join("Documents/Relay");
+                let folder = if default_project.is_dir() { default_project } else { home };
+                folder.to_string_lossy().into_owned()
+            });
         let mut a = Self {
             backend: Backend::idle(),
             connecting: false,
@@ -286,6 +316,7 @@ impl App {
             quitting: false,
             show_memory: false,
             memory_text: crate::memory::read(),
+            gbrain: crate::gbrain::Viewer::default(),
             stop_after_start: false,
 
             effort: saved
@@ -392,6 +423,11 @@ impl App {
             .send(json!({"id":id,"method":method,"params":params}))
             .is_err()
         {
+            self.pending.remove(&id);
+            if tag == "gbrain-recall" {
+                self.gbrain.agent_unavailable();
+                return;
+            }
             self.error = Some("Engine disconnected. Use Load or send a message to retry.".into());
             self.busy = false;
         }
@@ -414,6 +450,7 @@ impl App {
         self.ready = false;
         self.busy = false;
         self.pending.clear();
+        self.gbrain.reset_agent();
         self.error = None;
         self.status = "Engine loading".into();
         self.connecting = true;
@@ -570,6 +607,12 @@ impl App {
         if let Some(id) = v["id"].as_u64() {
             if v.get("method").is_none() {
                 let tag = self.pending.remove(&id).unwrap_or_default();
+                if tag == "gbrain-recall" {
+                    if let Some(thread) = self.gbrain.on_reply(&v) {
+                        self.request_gbrain_recall(&thread);
+                    }
+                    return;
+                }
                 let steering_input=self.steering_inflight.remove(&id);
                 if let Some(e) = v.get("error") {
                     if let Some(input)=steering_input {
@@ -623,6 +666,9 @@ impl App {
                     "list" => self.history = r["data"].as_array().cloned().unwrap_or_default(),
                     "start" => {
                         self.thread = r["thread"]["id"].as_str().map(String::from);
+                        if let Some(thread) = self.thread.as_deref() {
+                            self.gbrain.remember_thread(thread);
+                        }
                         self.save_state();
                         if let (Some(t), Some(i)) = (self.thread.clone(), self.queued_input.take())
                         {
@@ -634,6 +680,9 @@ impl App {
                         self.flush_steering();
                     },
                     "resume" => {
+                        if let Some(thread) = r["thread"]["id"].as_str() {
+                            self.gbrain.remember_thread(thread);
+                        }
                         self.dispatch_queued();
                         self.cwd = r["cwd"].as_str().unwrap_or(&self.cwd).into();
                         self.save_state();
@@ -1121,7 +1170,7 @@ impl App {
                 .width(260.0)
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgba_unmultiplied(33, 33, 33, 242))
+                        .fill(PANEL)
                         .corner_radius(18)
                         .inner_margin(12)
                         .shadow(egui::epaint::Shadow {
@@ -1205,7 +1254,7 @@ impl App {
                 .width(260.0)
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgba_unmultiplied(33, 33, 33, 242))
+                        .fill(PANEL)
                         .corner_radius(18)
                         .inner_margin(12)
                         .shadow(egui::epaint::Shadow {
@@ -1252,7 +1301,25 @@ impl App {
             json!({"cwd":self.cwd,"effort":self.effort,"access":self.access.min(2),"thread":self.thread}).to_string(),
         );
     }
+    fn request_gbrain_recall(&mut self, thread: &str) {
+        self.request(
+            "mcpServer/tool/call",
+            json!({
+                "threadId": thread,
+                "server": "gbrain",
+                "tool": "recall",
+                "arguments": {"source_id": "default"}
+            }),
+            "gbrain-recall",
+        );
+    }
+    fn refresh_gbrain(&mut self, ctx: &egui::Context) {
+        if let Some(thread) = self.gbrain.begin(ctx, self.ready && !self.demo) {
+            self.request_gbrain_recall(&thread);
+        }
+    }
     fn handle_events(&mut self, ctx: &egui::Context) {
+        self.gbrain.poll();
         self.skills.poll(&self.cwd);
         self.engine_manager.poll();
         if self.codex_manager.poll() {
@@ -1295,6 +1362,7 @@ impl App {
                     }
                 }
                 Ok(Event::Closed) => {
+                    self.gbrain.reset_agent();
                     let mut inputs=self.queued_steering.drain(..).collect::<Vec<_>>();
                     inputs.extend(self.steering_inflight.drain().map(|(_,input)|input));
                     for input in inputs {self.restore_context(&input);}
@@ -1329,7 +1397,7 @@ impl App {
         let p = &v["params"];
         let mut reply = None;
         let mut approval_open = true;
-        floating_window("approval",560.0).open(&mut approval_open).resizable(true).anchor(egui::Align2::CENTER_CENTER,[0.0,0.0]).show(&ctx,|ui|{
+        floating_window(ctx, "approval",560.0, approval_open).open(&mut approval_open).resizable(true).show(&ctx,|ui|{
             if method.ends_with("requestUserInput") {
                 if let Some(qs)=p["questions"].as_array(){for q in qs {let id=string(q,"id");ui.label(RichText::new(string(q,"question")).strong());let answer=self.answers.entry(id).or_default();if let Some(opts)=q["options"].as_array(){for opt in opts{let label=string(opt,"label");ui.radio_value(answer,label.clone(),label).on_hover_text(string(opt,"description"));}}ui.add(egui::TextEdit::singleline(answer).hint_text("Type an answer").password(q["isSecret"].as_bool().unwrap_or(false)));ui.add_space(8.0);}}
                 if ui.button("Send answer").clicked(){let mut answers=serde_json::Map::new();if let Some(qs)=p["questions"].as_array(){for q in qs{let id=string(q,"id");answers.insert(id.clone(),json!({"answers":[self.answers.get(&id).cloned().unwrap_or_default()]}));}}reply=Some(json!({"answers":answers}));}
@@ -1385,6 +1453,7 @@ impl eframe::App for App {
         if (self.ready || self.connecting)
             && !self.show_settings
             && !self.show_memory
+            && !self.gbrain.open
             && !self.quit_armed
             && !self.show_diff
         {
@@ -1417,6 +1486,7 @@ impl eframe::App for App {
             && !self.hidden
             && !self.show_settings
             && !self.show_memory
+            && !self.gbrain.open
             && !self.show_diff
             && !self.quit_armed
             && self.approvals.is_empty()
@@ -1641,6 +1711,16 @@ impl eframe::App for App {
                                 ui.add_space(2.0);
                                 self.composer_controls(ui);
                                 self.skills.button(ui, &self.cwd,self.composer_top);
+                                let gbrain = egui::Button::new(RichText::new("GBrain").size(12.0))
+                                    .fill(Color32::from_gray(if self.gbrain.open { 50 } else { 33 }))
+                                    .corner_radius(14)
+                                    .min_size(egui::vec2(0.0, 30.0));
+                                if ui.add(gbrain).on_hover_text("Browse saved GBrain facts").clicked() {
+                                    self.gbrain.open = !self.gbrain.open;
+                                    if self.gbrain.open {
+                                        self.refresh_gbrain(&ctx);
+                                    }
+                                }
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
@@ -1819,17 +1899,31 @@ impl eframe::App for App {
                 self.chat_scroll_target = crate::scroll_pill::show(ui, &scroll);
             });
         {
+            let mut open = self.gbrain.open;
+            let max_height = (ctx.content_rect().height() - 180.0).max(80.0);
+            let refresh = floating_window(&ctx, "relay-gbrain", 520.0, open)
+                .open(&mut open)
+                .show(&ctx, |ui| self.gbrain.show(ui, max_height))
+                .and_then(|response| response.inner)
+                .unwrap_or(false);
+            self.gbrain.open = open;
+            if refresh {
+                self.refresh_gbrain(&ctx);
+            }
+        }
+        {
             let mut open = self.show_memory;
-            floating_window("relay-memory",650.0).open(&mut open).show(&ctx,|ui|{
-            ui.label("Remembered across chats. Keep durable preferences and PC facts here; never credentials.");
-            egui::ScrollArea::vertical().max_height(460.0).show(ui,|ui|{ui.add(egui::TextEdit::multiline(&mut self.memory_text).desired_width(f32::INFINITY).desired_rows(18).font(egui::TextStyle::Monospace));});
+            floating_window(&ctx, "relay-memory",650.0, open).open(&mut open).show(&ctx,|ui|{
+            ui.heading("Persistent memory");
+            ui.label("Relay includes this note when starting or resuming a chat.");
+            egui::ScrollArea::vertical().max_height((ctx.content_rect().height() - 150.0).clamp(80.0, 460.0)).show(ui,|ui|{ui.add(egui::TextEdit::multiline(&mut self.memory_text).desired_width(f32::INFINITY).desired_rows(18).font(egui::TextStyle::Monospace));});
             if ui.button("Save memory").clicked(){match crate::memory::save(&self.memory_text){Ok(())=>self.status="Memory saved".into(),Err(e)=>self.error=Some(e.to_string())}}
         });
             self.show_memory = open;
         }
         {
             let mut open = self.show_settings;
-            floating_window("relay-settings",600.0).open(&mut open).show(&ctx,|ui| {
+            floating_window(&ctx, "relay-settings",600.0, open).open(&mut open).show(&ctx,|ui| {
                 egui::ScrollArea::vertical().id_salt("settings-scroll").max_height((ctx.content_rect().height()-130.0).max(200.0)).show(ui, |ui| {
                 self.codex_manager.show(ui, self.ready || self.connecting || self.busy, self.engine_manager.running);
                 ui.separator();
@@ -1868,7 +1962,7 @@ impl eframe::App for App {
             self.show_settings = open;
         }
         {
-            floating_window("relay-diff",820.0)
+            floating_window(&ctx, "relay-diff",820.0, self.show_diff)
                 .open(&mut self.show_diff)
                 .show(&ctx, |ui| {
                     egui::ScrollArea::both().max_height(600.0).show(ui, |ui| {
@@ -1879,7 +1973,7 @@ impl eframe::App for App {
                     });
                 });
         }
-        if !self.auth_pending && !self.show_settings && !self.show_memory && !self.show_diff {
+        if !self.auth_pending && !self.show_settings && !self.show_memory && !self.show_diff && !self.gbrain.open {
             self.chat_drawer.handle(
                 &ctx,
                 self.footer_center_y
