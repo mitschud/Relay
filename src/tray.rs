@@ -42,7 +42,7 @@ impl ksni::Tray for Tray {
             }
             .into(),
             StandardItem {
-                label: "Quit…".into(),
+                label: "Quit".into(),
                 activate: Box::new(|s: &mut Self| s.send(Action::Quit)),
                 ..Default::default()
             }

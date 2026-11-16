@@ -841,6 +841,11 @@ impl App {
         self.quit_armed_until = ctx.input(|i| i.time) + 5.0;
         ctx.request_repaint_after(std::time::Duration::from_secs(5));
     }
+    fn quit(&mut self, ctx: &egui::Context) {
+        self.revoke_sudo();
+        self.quitting = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
     fn show_window(&mut self, ctx: &egui::Context) {
         self.hidden = false;
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -963,7 +968,7 @@ impl App {
                         Action::Memory=>{self.memory_text=crate::memory::read();self.show_memory=!self.show_memory;}
                         Action::Changes=>{self.show_diff=!self.show_diff;},
                         Action::Quit=>{
-                            if self.quit_armed {self.revoke_sudo();self.quitting=true;ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);}
+                            if self.quit_armed {self.quit(ui.ctx());}
                             else {self.arm_quit(ui.ctx());}
                         },
                         Action::Compact=>{self.compact_thread();},
@@ -1427,6 +1432,15 @@ impl eframe::App for App {
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let was_hidden = self.hidden;
+        while let Ok(action) = self.tray_rx.try_recv() {
+            match action {
+                crate::tray::Action::Show => self.show_window(ctx),
+                crate::tray::Action::Quit => {
+                    self.quit(ctx);
+                    return;
+                }
+            }
+        }
         self.handle_events(ctx);
         self.poll_picker(ctx);
         self.sent_attachments.poll_sent(ctx);
@@ -1503,12 +1517,6 @@ impl eframe::App for App {
             .swap(false, std::sync::atomic::Ordering::SeqCst)
         {
             self.show_window(ctx);
-        }
-        while let Ok(action) = self.tray_rx.try_recv() {
-            self.show_window(ctx);
-            if matches!(action, crate::tray::Action::Quit) {
-                self.arm_quit(ctx);
-            }
         }
         while let Ok(event) = self.sudo_rx.try_recv() {
             match event {
