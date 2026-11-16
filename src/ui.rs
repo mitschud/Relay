@@ -29,20 +29,21 @@ fn floating_window(ctx: &egui::Context, id: &str, width: f32, open: bool) -> egu
     // anchor after the opening passes so the title bar can move the window.
     let placement = id.with("opening-placement");
     let pass = ctx.cumulative_pass_nr();
+    let now = ctx.input(|input| input.time);
     let placing = ctx.data_mut(|data| {
         if !open {
-            data.remove::<(u64, u64)>(placement);
+            data.remove::<(f64, u64)>(placement);
             return false;
         }
         let start = data
-            .get_temp::<(u64, u64)>(placement)
+            .get_temp::<(f64, u64)>(placement)
             .filter(|(_, last)| pass.saturating_sub(*last) <= 1)
-            .map_or(pass, |(start, _)| start);
+            .map_or(now, |(start, _)| start);
         data.insert_temp(placement, (start, pass));
-        pass.saturating_sub(start) < 2
+        now - start < 0.18
     });
     if placing {
-        ctx.request_repaint();
+        ctx.request_repaint_after(std::time::Duration::from_millis(16));
         window.anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
     } else {
         window
@@ -57,6 +58,8 @@ pub struct App {
     connecting: bool,
     model_info: Value,
     settings_text: String,
+    web_search: crate::web::SearchSettings,
+    skill_scan: crate::skill_scan::Settings,
     engine_manager: crate::engine::Manager,
     profiles: crate::profiles::Picker,
     codex_manager: crate::agent::Manager,
@@ -240,6 +243,8 @@ impl App {
             connecting: false,
             model_info: json!({}),
             settings_text: serde_json::to_string_pretty(&crate::config::load()).unwrap_or_default(),
+            web_search: crate::web::SearchSettings::default(),
+            skill_scan: crate::skill_scan::Settings::default(),
             engine_manager: crate::engine::Manager::default(),
             profiles: crate::profiles::Picker::load(),
             codex_manager: crate::agent::Manager::default(),
@@ -1933,6 +1938,10 @@ impl eframe::App for App {
             let mut open = self.show_settings;
             floating_window(&ctx, "relay-settings",600.0, open).open(&mut open).show(&ctx,|ui| {
                 egui::ScrollArea::vertical().id_salt("settings-scroll").max_height((ctx.content_rect().height()-130.0).max(200.0)).show(ui, |ui| {
+                self.web_search.show(ui);
+                ui.separator();
+                self.skill_scan.show(ui);
+                ui.separator();
                 self.codex_manager.show(ui, self.ready || self.connecting || self.busy, self.engine_manager.running);
                 ui.separator();
                 ui.add_enabled_ui(!self.codex_manager.running, |ui| {
@@ -1967,6 +1976,9 @@ impl eframe::App for App {
                 egui::CollapsingHeader::new("Connection diagnostics").show(ui,|ui|{egui::ScrollArea::both().max_height(140.0).show(ui,|ui|{ui.monospace(&self.logs);});});
                 });
             });
+            if !open {
+                self.web_search.clear(&ctx);
+            }
             self.show_settings = open;
         }
         {

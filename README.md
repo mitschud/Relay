@@ -71,6 +71,7 @@ The optional sudo integration is tied to the GUI session. It does not install a 
 - **Persistent memory:** an editable local Markdown file for preferences and facts worth carrying across conversations.
 - **GBrain:** optional on-demand memory for project facts and decisions. Open the read-only viewer beside **Skills** to filter the latest 50 active facts.
 - **Web tools:** optional Tavily search, Startpage browser fallback, and public page reading.
+- **Skill scan:** optional static skill inspection with NVIDIA SkillSpector from Settings.
 - **System telemetry:** optional CPU/GPU power, VRAM temperature and memory clock readings through existing RAPL/LACT interfaces.
 - **Native Codex updater:** check for, install, or roll back a separately managed Codex agent build.
 
@@ -176,9 +177,15 @@ A minimal example (adjust for your installation):
 
 ### Optional web search
 
-Register `~/.local/libexec/relay/relay-web` under `[mcp_servers.web]` in Relay's Codex profile. Save a Tavily API key in `~/.config/relay/tavily-key` with owner-only permissions, or provide `TAVILY_API_KEY` to the helper's environment. The helper rereads the key for each search.
+Open **Settings → Web search**, paste your own Tavily API key into the masked field, and click **Apply**. Relay stores it separately in `~/.config/relay/tavily-key` with owner-only permissions. **Remove saved key** deletes that local copy. The helper checks the saved key for every search, then checks `TAVILY_API_KEY` in its environment. Relay source and installs contain no default key.
+
+The default Relay-managed Codex profile gets the `relay_web` MCP tool automatically. When using an explicit `codex_home`, register `~/.local/libexec/relay/relay-web` under `[mcp_servers.web]` in that profile.
 
 `search_web` sends the search query to Tavily and returns ranked links and snippets. It uses basic search. The existing `read_page` tool can retrieve public sources for citations. When no key is configured, or automatic search fails, Relay provides a Startpage browser link and reports the reason.
+
+### Optional skill scan
+
+Install the [NVIDIA SkillSpector CLI](https://github.com/NVIDIA/SkillSpector#installation) on your PATH. In **Settings → Skill scan**, enter the local folder, Markdown file, or ZIP and click **Scan**. Relay shows the risk assessment, findings, and an incomplete-coverage indicator when applicable. It uses static analysis with `--no-llm`. SkillSpector may send dependency names and versions to OSV.dev.
 
 ### Optional GBrain memory
 

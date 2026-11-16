@@ -564,10 +564,8 @@ fn main_inner(extra: &[String]) -> Result<i32, String> {
     )
     .map_err(|e| e.to_string())?;
 
-    let profile = settings["codex_home"]
-        .as_str()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| data.join("codex"));
+    let custom_profile = settings["codex_home"].as_str();
+    let profile = custom_profile.map(PathBuf::from).unwrap_or_else(|| data.join("codex"));
     std::fs::create_dir_all(&profile).map_err(|e| e.to_string())?;
 
     let mut args: Vec<String> = vec![
@@ -602,6 +600,15 @@ fn main_inner(extra: &[String]) -> Result<i32, String> {
         args.push(format!("model_context_window={context}"));
         args.push("-c".into());
         args.push(format!("model_auto_compact_token_limit={limit}"));
+    }
+    if custom_profile.is_none() {
+        let relay = std::env::current_exe().map_err(|e| e.to_string())?;
+        args.extend([
+            "-c".into(),
+            format!("mcp_servers.relay_web.command={}", json!(relay.to_string_lossy())),
+            "-c".into(),
+            "mcp_servers.relay_web.args=[\"__web-mcp\"]".into(),
+        ]);
     }
     args.extend_from_slice(extra);
 

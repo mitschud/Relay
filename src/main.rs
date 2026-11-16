@@ -27,6 +27,7 @@ mod picker;
 mod profiles;
 mod scroll_pill;
 mod skills;
+mod skill_scan;
 mod strata_helper;
 mod sudo;
 mod supervisor;

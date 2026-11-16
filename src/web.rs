@@ -359,20 +359,113 @@ fn url_encode(text: &str) -> String {
     out
 }
 
+fn tavily_key_path() -> std::path::PathBuf {
+    crate::config::path().with_file_name("tavily-key")
+}
+
+fn valid_tavily_key(value: &str) -> Option<&str> {
+    let key = value.trim();
+    (!key.is_empty()
+        && key.len() <= 256
+        && key
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')))
+    .then_some(key)
+}
+
+fn saved_tavily_key() -> Option<String> {
+    let text = std::fs::read_to_string(tavily_key_path()).ok()?;
+    valid_tavily_key(&text).map(str::to_owned)
+}
+
+fn env_tavily_key() -> Option<String> {
+    let value = std::env::var("TAVILY_API_KEY").ok()?;
+    valid_tavily_key(&value).map(str::to_owned)
+}
+
 fn tavily_key() -> Option<String> {
-    let validate = |value: String| {
-        let key = value.trim();
-        if !key.is_empty() && key.len() <= 256
-            && key.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-        {
-            return Some(key.to_owned());
+    saved_tavily_key().or_else(env_tavily_key)
+}
+
+#[derive(Default)]
+pub struct SearchSettings {
+    draft: String,
+    feedback: Option<Result<&'static str, String>>,
+}
+
+impl SearchSettings {
+    pub fn clear(&mut self, ctx: &eframe::egui::Context) {
+        self.clear_draft(ctx);
+        self.feedback = None;
+    }
+
+    fn clear_draft(&mut self, ctx: &eframe::egui::Context) {
+        if !self.draft.is_empty() {
+            self.draft.clear();
+            let id = eframe::egui::Id::unique("relay-tavily-key");
+            if let Some(mut state) = eframe::egui::TextEdit::load_state(ctx, id) {
+                state.clear_undoer();
+                eframe::egui::TextEdit::store_state(ctx, id, state);
+            }
         }
-        None
-    };
-    std::env::var("TAVILY_API_KEY").ok().and_then(validate).or_else(|| {
-        let path = crate::util::home().join(".config/relay/tavily-key");
-        std::fs::read_to_string(path).ok().and_then(validate)
-    })
+    }
+
+    pub fn show(&mut self, ui: &mut eframe::egui::Ui) {
+        use eframe::egui::{self, Button, TextEdit};
+        ui.heading("Web search");
+        let saved = saved_tavily_key().is_some();
+        ui.label(if saved {
+            "Tavily key saved"
+        } else if env_tavily_key().is_some() {
+            "Using Tavily key from the environment"
+        } else {
+            "Startpage fallback active"
+        });
+        ui.horizontal_wrapped(|ui| {
+            ui.add(
+                TextEdit::singleline(&mut self.draft)
+                    .password(true)
+                    .desired_width(230.0)
+                    .char_limit(257)
+                    .hint_text("Tavily API key")
+                    .id(egui::Id::unique("relay-tavily-key")),
+            );
+            if ui
+                .add_enabled(!self.draft.trim().is_empty(), Button::new("Apply"))
+                .clicked()
+            {
+                self.feedback = Some(
+                    valid_tavily_key(&self.draft)
+                        .ok_or_else(|| "Enter only the Tavily API key.".to_owned())
+                        .and_then(|key| {
+                            crate::util::atomic_write(&tavily_key_path(), key.as_bytes(), 0o600)
+                        })
+                        .map(|()| "Saved. Applies to the next search."),
+                );
+                if matches!(self.feedback, Some(Ok(_))) {
+                    self.clear_draft(ui.ctx());
+                }
+            }
+            if saved && ui.button("Remove saved key").clicked() {
+                self.feedback = Some(
+                    std::fs::remove_file(tavily_key_path())
+                        .map(|()| "Saved key removed.")
+                        .map_err(|error| error.to_string()),
+                );
+                self.clear_draft(ui.ctx());
+            }
+        });
+        if let Some(feedback) = &self.feedback {
+            match feedback {
+                Ok(message) => {
+                    ui.label(*message);
+                }
+                Err(error) => {
+                    ui.colored_label(egui::Color32::LIGHT_RED, error);
+                }
+            }
+        }
+    }
 }
 
 fn tavily_search(key: &str, query: &str, limit: usize) -> Result<Vec<Value>, String> {
